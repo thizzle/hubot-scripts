@@ -18,9 +18,11 @@
 #   Tharsan Bhuvanendran <me@tharsan.com>
 
 room = ""
+votes = {}
+currentTrack = null
 
 module.exports = (robot) ->
-  io = require('socket.io').listen(robot.server)
+  io = require('socket.io').listen 8081
   io.sockets.on 'connection', (socket) ->
     socket.emit 'welcome', name: robot.name
     socket.on 'trackchnge', (data) ->
@@ -33,6 +35,25 @@ module.exports = (robot) ->
 
       robot.send user, "Now Playing: #{track} by #{artist} from #{year}"
 
+      total = tally()
+      if total
+        socket.emit 'trackdrop', currentTrack
+
+      currentTrack = data.data
+      votes = {}
+
     socket.on 'join', (data) ->
       room = data
 
+  robot.respond /spotify (\+|-)1/i, (msg) ->
+    now = new Date()
+    votes[msg.message.user.id] =
+      user: msg.message.user
+      term: if msg.match[1] is '+' then 1 else -1
+      time: now.getTime()
+
+  tally = ->
+    total = 0
+    for userId, vote of votes
+      total += vote.term
+    total
