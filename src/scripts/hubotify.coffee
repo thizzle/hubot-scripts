@@ -10,6 +10,7 @@
 # Commands:
 #   hubot spotify +1
 #   hubot spotify -1
+#   hubot spotify current
 #
 # Notes:
 #   None
@@ -29,21 +30,29 @@ module.exports = (robot) ->
       user = {}
       user.room = room if room
 
-      artist = data.data.artists[0].name
-      track  = data.data.name
-      year   = data.data.album.year
-
-      robot.send user, "Now Playing: #{track} by #{artist} from #{year}"
-
       total = tally()
       if total
         socket.emit 'trackdrop', currentTrack
+        robot.send user, "Removing '#{currentTrack.name}' from the playlist"
 
       currentTrack = data.data
       votes = {}
 
+      artist = currentTrack.artists[0].name
+      track  = currentTrack.name
+      year   = currentTrack.album.year
+
+      robot.send user, "Now Playing: #{track} by #{artist} from #{year}"
+
     socket.on 'join', (data) ->
       room = data
+
+  robot.respond /spotify current/i, (msg) ->
+    artist = currentTrack.artists[0].name
+    track  = currentTrack.name
+    year   = currentTrack.album.year
+
+    msg.send "Now Playing: #{track} by #{artist} from #{year}"
 
   robot.respond /spotify (\+|-)1/i, (msg) ->
     now = new Date()
