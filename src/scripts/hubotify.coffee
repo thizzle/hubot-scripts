@@ -71,7 +71,7 @@ module.exports = (robot) ->
       time: now.getTime()
 
     [ total, duration ] = tally()
-    if duration > 10 and total < -2
+    if duration < 10 and total < -2
       trackdrop()
 
   trackdrop = ->
