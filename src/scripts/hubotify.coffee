@@ -71,8 +71,10 @@ module.exports = (robot) ->
       time: now.getTime()
 
     [ total, duration ] = tally()
-    if duration < 10 and total < -2
+    if duration < 15 and total < -2
       trackdrop()
+      if spotify
+        spotify.emit 'play:next'
 
   trackdrop = ->
     return unless currentTrack
@@ -108,5 +110,5 @@ module.exports = (robot) ->
       if end is null or vote.time > end
         end = vote.time
 
-    [ total, end - start ]
+    [ total, Math.round((end - start) / 1000) ]
 
