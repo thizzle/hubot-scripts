@@ -1,5 +1,6 @@
 # Description
-#   Real-time communication with Spotify
+#   Real-time communication with Spotify allows partcipants in a room to receive
+#   broadcast updates about track changes, and vote up/down tracks during playback
 #
 # Dependencies:
 #   socket.io >= 0.9.x
@@ -8,9 +9,11 @@
 #   None
 #
 # Commands:
-#   hubot spotify +1
-#   hubot spotify -1
-#   hubot spotify current
+#   hubot spotify +1      - vote up the current playing track
+#   hubot spotify like    - vote up the current playing track
+#   hubot spotify -1      - vote down the current playing track
+#   hubot spotify hate    - vote down the current playing track
+#   hubot spotify current - show the current playing track info
 #
 # Notes:
 #   None
@@ -21,19 +24,25 @@
 room = ""
 votes = {}
 currentTrack = null
+spotify = null
+
+trackdropMessages = [
+  "{{artist}} doesn't have a lot of fans around here.",
+  "Why does everybody hate {{artist}} so much?"
+]
 
 module.exports = (robot) ->
   io = require('socket.io').listen 8081
   io.sockets.on 'connection', (socket) ->
+    spotify = socket
     socket.emit 'welcome', name: robot.name
     socket.on 'trackchnge', (data) ->
       user = {}
       user.room = room if room
 
-      total = tally()
-      if total
-        socket.emit 'trackdrop', currentTrack
-        robot.send user, "Removing '#{currentTrack.name}' from the playlist"
+      [ total, duration ] = tally()
+      if total < -1
+        trackdrop()
 
       currentTrack = data.data
       votes = {}
@@ -54,15 +63,50 @@ module.exports = (robot) ->
 
     msg.send "Now Playing: #{track} by #{artist} from #{year}"
 
-  robot.respond /spotify (\+|-)1/i, (msg) ->
+  robot.respond /spotify (\+1|-1|like|hate)/i, (msg) ->
     now = new Date()
     votes[msg.message.user.id] =
       user: msg.message.user
-      term: if msg.match[1] is '+' then 1 else -1
+      term: if msg.match[1] in ['+1', 'like'] then 1 else -1
       time: now.getTime()
 
+    [ total, duration ] = tally()
+    if duration > 10 and total < -2
+      trackdrop()
+
+  trackdrop = ->
+    return unless currentTrack
+
+    user = {}
+    user.room = room if room
+
+    artist = currentTrack.artists[0].name
+    track  = currentTrack.name
+    year   = currentTrack.album.year
+
+    idx = Math.round Math.random() * trackdropMessages.length - 1
+    message = trackdropMessages[idx]
+    message = message.replace '{{artist}}', artist
+    message = message.replace '{{track}}', track
+    message = message.replace '{{year}}', year
+
+    if spotify
+      spotify.emit 'trackdrop', currentTrack
+
+    robot.send user, "#{message} Removing '#{currentTrack.name}' from the playlist"
+
   tally = ->
+    start = null
+    end = null
     total = 0
+
     for userId, vote of votes
       total += vote.term
-    total
+      if start is null or vote.time < start
+        start = vote.time
+
+      if end is null or vote.time > end
+        end = vote.time
+
+    [ total, end - start ]
+
